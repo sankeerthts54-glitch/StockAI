@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Stock Market Analysis &amp; Prediction</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <!-- Chart.js annotation plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+  <style>
+    /* ═══════════════════════════════════════════════════════
+       CSS RESET & CUSTOM PROPERTIES
+       ═══════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:        #0a0e1a;
+      --bg-mid:         #0f1526;
+      --accent:         #6c63ff;
+      --accent-alt:     #00d4aa;
+      --danger:         #ff5f7e;
+      --warn:           #ffb347;
+      --text-primary:   #e8eaf6;
+      --text-secondary: #9ea8c4;
+      --glass-bg:       rgba(255,255,255,0.05);
+      --glass-border:   rgba(255,255,255,0.10);
+      --glass-blur:     blur(16px);
+      --radius:         16px;
+      --radius-sm:      10px;
+      --shadow:         0 8px 32px rgba(0,0,0,0.5);
+      --transition:     0.25s ease;
+      --bullish:        #00d4aa;
+      --bearish:        #ff5f7e;
+      --neutral:        #ffb347;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       BASE
+       ═══════════════════════════════════════════════════════ */
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated gradient background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(108,99,255,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(0,212,170,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(255,95,126,0.06) 0%, transparent 70%);
+      z-index: -1;
+      animation: bgPulse 12s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgPulse {
+      0%   { opacity: 0.8; }
+      100% { opacity: 1.0; }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       GLASS CARD UTILITY
+       ═══════════════════════════════════════════════════════ */
+    .glass {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════ */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(10,14,26,0.6);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-sub {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+    }
+
+    .header-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(108,99,255,0.15);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      color: var(--accent);
+    }
+
+    .pulse-dot {
+      width: 8px; height: 8px;
+      background: var(--accent-alt);
+      border-radius: 50%;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       MAIN LAYOUT
+       ═══════════════════════════════════════════════════════ */
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Control Bar ─────────────────────────────────────── */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .control-label {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    select#tickerSelect {
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: var(--glass-blur);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 10px 42px 10px 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color var(--transition);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239ea8c4' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      min-width: 220px;
+    }
+
+    select#tickerSelect:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.2);
+    }
+
+    .btn-analyze {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 22px;
+      background: linear-gradient(135deg, var(--accent), #8b82ff);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+      box-shadow: 0 4px 16px rgba(108,99,255,0.4);
+    }
+
+    .btn-analyze:hover  { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(108,99,255,0.5); }
+    .btn-analyze:active { transform: translateY(0); }
+    .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── Loading Overlay ─────────────────────────────────── */
+    #loadingOverlay {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background: rgba(108,99,255,0.1);
+      border: 1px solid rgba(108,99,255,0.25);
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      color: var(--accent);
+    }
+
+    #loadingOverlay.active { display: flex; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(108,99,255,0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ═══════════════════════════════════════════════════════
+       METRICS GRID
+       ═══════════════════════════════════════════════════════ */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .metric-card {
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--transition);
+    }
+
+    .metric-card:hover { transform: translateY(-3px); }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: linear-gradient(to bottom, var(--accent), var(--accent-alt));
+      border-radius: 3px 0 0 3px;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+    }
+
+    .metric-sub {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .metric-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      width: fit-content;
+    }
+
+    .badge-bull { background: rgba(0,212,170,0.15); color: var(--bullish); }
+    .badge-bear { background: rgba(255,95,126,0.15); color: var(--bearish); }
+    .badge-neut { background: rgba(255,179,71,0.15); color: var(--neutral); }
+
+    .metric-icon {
+      position: absolute;
+      right: 20px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 2.4rem;
+      opacity: 0.08;
+    }
+
+    /* Pred change special */
+    .change-pos { color: var(--bullish); }
+    .change-neg { color: var(--bearish); }
+
+    /* ═══════════════════════════════════════════════════════
+       CHART SECTION
+       ═══════════════════════════════════════════════════════ */
+    .chart-section {
+      padding: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .section-title .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+    }
+
+    .chart-legend {
+      display: flex; align-items: center; gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .legend-line {
+      width: 24px; height: 3px;
+      border-radius: 2px;
+    }
+
+    .legend-dashed {
+      border-top: 2px dashed;
+      background: none;
+      height: 0;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 380px;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       BOTTOM ROW: RSI + INSIGHTS
+       ═══════════════════════════════════════════════════════ */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .bottom-row { grid-template-columns: 1fr; }
+    }
+
+    /* ── RSI Card ────────────────────────────────────────── */
+    .rsi-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .rsi-gauge-wrapper {
+      position: relative;
+      height: 180px;
+    }
+
+    .rsi-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .rsi-value-display {
+      text-align: center;
+    }
+
+    .rsi-number {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    .rsi-status {
+      font-size: 0.82rem;
+      margin-top: 4px;
+    }
+
+    /* ── Insights Card ───────────────────────────────────── */
+    .insights-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .sentiment-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px;
+      border-radius: 30px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      width: fit-content;
+    }
+
+    .sentiment-bull { background: rgba(0,212,170,0.15); border: 1px solid rgba(0,212,170,0.4); color: var(--bullish); }
+    .sentiment-bear { background: rgba(255,95,126,0.15); border: 1px solid rgba(255,95,126,0.4); color: var(--bearish); }
+    .sentiment-neut { background: rgba(255,179,71,0.15);  border: 1px solid rgba(255,179,71,0.4);  color: var(--neutral); }
+
+    .insight-summary {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: var(--text-primary);
+    }
+
+    .insight-details {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .insight-bullet {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      border-radius: var(--radius-sm);
+      border-left: 2px solid rgba(108,99,255,0.4);
+    }
+
+    .opportunity-box {
+      padding: 14px 18px;
+      background: rgba(108,99,255,0.08);
+      border: 1px solid rgba(108,99,255,0.2);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .opportunity-box strong {
+      color: var(--accent);
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* ── Model Info ──────────────────────────────────────── */
+    .model-info-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 14px 18px;
+      background: rgba(255,255,255,0.03);
+      border-radius: var(--radius-sm);
+    }
+
+    .model-chip {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 4px 10px;
+    }
+
+    .model-chip span { color: var(--accent-alt); font-weight: 600; }
+
+    /* ═══════════════════════════════════════════════════════
+       PLACEHOLDER / EMPTY STATE
+       ═══════════════════════════════════════════════════════ */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+
+    .empty-icon { font-size: 4rem; opacity: 0.4; }
+    .empty-title { font-size: 1.1rem; color: var(--text-primary); font-weight: 600; }
+    .empty-sub   { font-size: 0.88rem; }
+
+    /* ═══════════════════════════════════════════════════════
+       ERROR TOAST
+       ═══════════════════════════════════════════════════════ */
+    #errorToast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: rgba(255,95,126,0.15);
+      border: 1px solid rgba(255,95,126,0.4);
+      border-radius: var(--radius-sm);
+      padding: 14px 20px;
+      font-size: 0.88rem;
+      color: var(--bearish);
+      display: none;
+      z-index: 999;
+      max-width: 360px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════ */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--glass-border);
+      margin-top: 12px;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* ═══════════════════════════════════════════════════════
+       SCROLLBAR
+       ═══════════════════════════════════════════════════════ */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  </style>
+</head>
+
+<body>
+
+<!-- ══ HEADER ═══════════════════════════════════════════════════════════════ -->
+<header>
+  <div class="header-brand">
+    <div class="brand-icon">📈</div>
+    <div>
+      <div class="brand-title">StockAI Insights</div>
+      <div class="brand-sub">AI-Powered Market Analysis &amp; Prediction</div>
+    </div>
+  </div>
+  <div class="header-badge">
+    <div class="pulse-dot"></div>
+    Live Demo · AI For Finance CIA-2
+  </div>
+</header>
+
+<!-- ══ MAIN ══════════════════════════════════════════════════════════════════ -->
+<main>
+
+  <!-- Control Bar -->
+  <div class="control-bar glass" style="padding:16px 20px;">
+    <span class="control-label">Select Stock</span>
+    <select id="tickerSelect">
+      <option value="">-- Choose a Ticker --</option>
+    </select>
+    <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">
+      <span>🤖</span> Analyse with AI
+    </button>
+    <div id="loadingOverlay">
+      <div class="spinner"></div>
+      Fetching &amp; running ML model…
+    </div>
+  </div>
+
+  <!-- Metrics Grid -->
+  <div class="metrics-grid" id="metricsGrid">
+    <div class="glass metric-card" style="grid-column: 1/-1;">
+      <div class="empty-state">
+        <div class="empty-icon">🧠</div>
+        <div class="empty-title">Select a stock ticker to begin</div>
+        <div class="empty-sub">The AI engine will compute SMA signals, train a regression model, and generate insights.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Price Chart -->
+  <div class="glass chart-section" id="chartSection">
+    <div class="section-header">
+      <div class="section-title"><div class="dot"></div> Price History &amp; AI Forecast</div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-line" style="background:#6c63ff;"></div> Close Price
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:#00d4aa;"></div> SMA 50
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:#ffb347;"></div> SMA 200
+        </div>
+        <div class="legend-item">
+          <div class="legend-line legend-dashed" style="border-color:#ff5f7e; width:24px;"></div> Forecast
+        </div>
+      </div>
+    </div>
+    <div class="chart-wrapper">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Bottom Row: RSI + Insights -->
+  <div class="bottom-row">
+
+    <!-- RSI Card -->
+    <div class="glass rsi-card" id="rsiCard">
+      <div class="section-title"><div class="dot"></div> RSI Momentum</div>
+      <div class="rsi-gauge-wrapper">
+        <canvas id="rsiChart"></canvas>
+      </div>
+      <div class="rsi-labels">
+        <span>Oversold (0)</span>
+        <span>Neutral (50)</span>
+        <span>Overbought (100)</span>
+      </div>
+      <div class="rsi-value-display" id="rsiValueDisplay">
+        <div class="rsi-number text-secondary" id="rsiNumber">—</div>
+        <div class="rsi-status" id="rsiStatus">Awaiting data…</div>
+      </div>
+    </div>
+
+    <!-- AI Insights Card -->
+    <div class="glass insights-card" id="insightsCard">
+      <div class="section-header" style="margin-bottom:0;">
+        <div class="section-title"><div class="dot"></div> AI Insights &amp; Opportunities</div>
+        <div id="sentimentPill"></div>
+      </div>
+      <div id="insightBody">
+        <div class="empty-state" style="padding:40px 0;">
+          <div class="empty-icon">💡</div>
+          <div class="empty-sub">AI-generated insights will appear here after analysis.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /bottom-row -->
+
+  <!-- Model Info Row -->
+  <div class="model-info-row glass" id="modelInfoRow" style="display:none;">
+    <div class="model-chip">🤖 Model <span>Linear Regression</span></div>
+    <div class="model-chip">📐 Features <span>6 (time, SMA-5, SMA-10, σ-5, lag-1, lag-2)</span></div>
+    <div class="model-chip" id="r2Chip">R² Score <span>—</span></div>
+    <div class="model-chip">📊 Training Window <span>365 trading days</span></div>
+    <div class="model-chip">🔮 Forecast Horizon <span>5 trading days</span></div>
+  </div>
+
+</main>
+
+<footer>
+  Built for <strong>AI For Finance CIA-2</strong> · Powered by
+  <a href="#">FastAPI</a>, <a href="#">Scikit-learn</a> &amp; <a href="#">Chart.js</a>
+  · Mock data via Geometric Brownian Motion
+</footer>
+
+<!-- Error Toast -->
+<div id="errorToast"></div>
+
+<!-- ══ JAVASCRIPT ═════════════════════════════════════════════════════════════ -->
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let priceChartInst = null;
+  let rsiChartInst   = null;
+
+  // ── API base (same origin when served by FastAPI) ─────────────────────────
+  const API = window.location.origin;
+
+  // ── Utility helpers ────────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+
+  function showError(msg) {
+    const toast = $('errorToast');
+    toast.textContent = '⚠️  ' + msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 5000);
+  }
+
+  function fmt(val, dec = 2) {
+    if (val === null || val === undefined) return '—';
+    return Number(val).toFixed(dec);
+  }
+
+  function fmtPrice(val) {
+    if (val === null || val === undefined) return '—';
+    return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ── Load tickers on page ready ─────────────────────────────────────────────
+  async function loadTickers() {
+    try {
+      const res  = await fetch(`${API}/api/tickers`);
+      const data = await res.json();
+      const sel  = $('tickerSelect');
+      data.tickers.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.ticker;
+        opt.textContent = `${t.ticker} — ${t.name}`;
+        sel.appendChild(opt);
+      });
+    } catch(e) {
+      showError('Cannot reach backend. Make sure the FastAPI server is running on port 8000.');
+    }
+  }
+
+  // ── Main analysis flow ─────────────────────────────────────────────────────
+  async function runAnalysis() {
+    const ticker = $('tickerSelect').value;
+    if (!ticker) { showError('Please select a ticker first.'); return; }
+
+    // Show loading
+    $('loadingOverlay').classList.add('active');
+    $('analyzeBtn').disabled = true;
+
+    try {
+      const res  = await fetch(`${API}/api/stock/${ticker}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'API error'); }
+      const data = await res.json();
+
+      renderMetrics(data);
+      renderPriceChart(data);
+      renderRsiChart(data);
+      renderInsights(data);
+      renderModelInfo(data);
+
+    } catch(e) {
+      showError(e.message);
+    } finally {
+      $('loadingOverlay').classList.remove('active');
+      $('analyzeBtn').disabled = false;
+    }
+  }
+
+  // ── Metrics Grid ───────────────────────────────────────────────────────────
+  function renderMetrics(data) {
+    const m = data.metrics;
+    const predPct = m.pred_change_pct;
+    const predClass = predPct >= 0 ? 'change-pos' : 'change-neg';
+    const predSign  = predPct >= 0 ? '▲' : '▼';
+    const predColor = predPct >= 0 ? '#00d4aa' : '#ff5f7e';
+
+    // SMA cross badge
+    let smaCross = '—', smaBadgeClass = 'badge-neut';
+    if (m.sma50 && m.sma200) {
+      if (m.sma50 > m.sma200) { smaCross = '📈 Golden Cross'; smaBadgeClass = 'badge-bull'; }
+      else                     { smaCross = '📉 Death Cross';  smaBadgeClass = 'badge-bear'; }
+    }
+
+    // RSI label
+    let rsiLabel = '—', rsiBadge = 'badge-neut';
+    if (m.rsi !== null) {
+      if      (m.rsi >= 70) { rsiLabel = 'Overbought'; rsiBadge = 'badge-bear'; }
+      else if (m.rsi <= 30) { rsiLabel = 'Oversold';   rsiBadge = 'badge-bull'; }
+      else                  { rsiLabel = 'Neutral';     rsiBadge = 'badge-neut'; }
+    }
+
+    $('metricsGrid').innerHTML = `
+      <div class="glass metric-card">
+        <div class="metric-label">Current Price</div>
+        <div class="metric-value">${fmtPrice(m.current_price)}</div>
+        <div class="metric-sub">${data.ticker} · Last close</div>
+        <div class="metric-icon">💰</div>
+      </div>
+
+      <div class="glass metric-card">
+        <div class="metric-label">50-Day SMA</div>
+        <div class="metric-value">${fmtPrice(m.sma50)}</div>
+        <div class="metric-sub">Short-term trend</div>
+        <div class="metric-icon">📊</div>
+      </div>
+
+      <div class="glass metric-card">
+        <div class="metric-label">200-Day SMA</div>
+        <div class="metric-value">${fmtPrice(m.sma200)}</div>
+        <div class="metric-sub">Long-term trend · <span class="metric-badge ${smaBadgeClass}">${smaCross}</span></div>
+        <div class="metric-icon">📉</div>
+      </div>
+
+      <div class="glass metric-card">
+        <div class="metric-label">Predicted 5-Day Change</div>
+        <div class="metric-value ${predClass}">${predSign} ${Math.abs(predPct).toFixed(2)}%</div>
+        <div class="metric-sub">ML forecast (Linear Regression)</div>
+        <div class="metric-icon">🤖</div>
+      </div>
+
+      <div class="glass metric-card">
+        <div class="metric-label">RSI (14-day)</div>
+        <div class="metric-value">${fmt(m.rsi, 1)}</div>
+        <div class="metric-sub"><span class="metric-badge ${rsiBadge}">${rsiLabel}</span></div>
+        <div class="metric-icon">⚡</div>
+      </div>
+    `;
+  }
+
+  // ── Price Chart ────────────────────────────────────────────────────────────
+  function renderPriceChart(data) {
+    if (priceChartInst) { priceChartInst.destroy(); priceChartInst = null; }
+
+    const allDates  = [...data.dates, ...data.predicted_dates];
+    const closeLen  = data.close.length;
+
+    // Historical close (full range, null for future)
+    const closeData = [
+      ...data.close,
+      ...Array(data.predicted_dates.length).fill(null)
+    ];
+
+    // Predicted (nulls for history, then values, overlapping last historical point)
+    const predData = [
+      ...Array(closeLen - 1).fill(null),
+      data.close[closeLen - 1],          // connect to last historical point
+      ...data.predicted_prices
+    ];
+
+    // SMA50
+    const sma50Data = [
+      ...data.sma50,
+      ...Array(data.predicted_dates.length).fill(null)
+    ];
+
+    // SMA200
+    const sma200Data = [
+      ...data.sma200,
+      ...Array(data.predicted_dates.length).fill(null)
+    ];
+
+    // Show only last 120 labels for readability
+    const SHOW = 120 + data.predicted_dates.length;
+    const sliceFrom = Math.max(0, allDates.length - SHOW);
+    const labels   = allDates.slice(sliceFrom);
+    const slice    = arr => arr.slice(sliceFrom);
+
+    const ctx = $('priceChart').getContext('2d');
+
+    priceChartInst = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Close Price',
+            data: slice(closeData),
+            borderColor: '#6c63ff',
+            backgroundColor: 'rgba(108,99,255,0.08)',
+            borderWidth: 2,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            fill: true,
+            tension: 0.3,
+            order: 1,
+          },
+          {
+            label: 'SMA 50',
+            data: slice(sma50Data),
+            borderColor: '#00d4aa',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            tension: 0.3,
+            order: 2,
+          },
+          {
+            label: 'SMA 200',
+            data: slice(sma200Data),
+            borderColor: '#ffb347',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            tension: 0.3,
+            order: 3,
+          },
+          {
+            label: 'AI Forecast',
+            data: slice(predData),
+            borderColor: '#ff5f7e',
+            borderDash: [6, 3],
+            borderWidth: 2.5,
+            pointRadius: (ctx) => {
+              // Only show point on actual forecast values
+              const v = slice(predData)[ctx.dataIndex];
+              return v !== null ? 5 : 0;
+            },
+            pointBackgroundColor: '#ff5f7e',
+            fill: false,
+            tension: 0.3,
+            order: 0,
+          },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(10,14,26,0.9)',
+            borderColor: 'rgba(255,255,255,0.1)',
+            borderWidth: 1,
+            titleColor: '#e8eaf6',
+            bodyColor: '#9ea8c4',
+            padding: 12,
+            callbacks: {
+              label: (item) => {
+                const v = item.raw;
+                if (v === null) return null;
+                return `  ${item.dataset.label}: $${Number(v).toFixed(2)}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#9ea8c4',
+              maxTicksLimit: 10,
+              font: { size: 11 },
+              maxRotation: 0,
+            },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          },
+          y: {
+            ticks: {
+              color: '#9ea8c4',
+              font: { size: 11 },
+              callback: v => '$' + Number(v).toFixed(0),
+            },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          }
+        }
+      }
+    });
+  }
+
+  // ── RSI Gauge Chart ────────────────────────────────────────────────────────
+  function renderRsiChart(data) {
+    if (rsiChartInst) { rsiChartInst.destroy(); rsiChartInst = null; }
+
+    const rsiVals = data.rsi.filter(v => v !== null);
+    const last30  = rsiVals.slice(-30);
+    const rsi     = data.metrics.rsi;
+
+    // Colour based on zone
+    let rsiColor = '#ffb347';
+    if (rsi >= 70) rsiColor = '#ff5f7e';
+    if (rsi <= 30) rsiColor = '#00d4aa';
+
+    $('rsiNumber').textContent = rsi !== null ? rsi.toFixed(1) : '—';
+    $('rsiNumber').style.color = rsiColor;
+
+    if      (rsi >= 70) $('rsiStatus').textContent = '🔴 Overbought — potential reversal zone';
+    else if (rsi <= 30) $('rsiStatus').textContent = '🟢 Oversold — potential bounce zone';
+    else                $('rsiStatus').textContent = '⚪ Neutral momentum zone (30–70)';
+
+    const ctx = $('rsiChart').getContext('2d');
+    rsiChartInst = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: last30.map((_, i) => i + 1),
+        datasets: [
+          {
+            label: 'RSI',
+            data: last30,
+            borderColor: rsiColor,
+            backgroundColor: `${rsiColor}22`,
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true,
+            tension: 0.4,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: { label: i => `RSI: ${i.raw.toFixed(1)}` }
+          }
+        },
+        scales: {
+          x: { display: false },
+          y: {
+            min: 0, max: 100,
+            ticks: { color: '#9ea8c4', font: { size: 10 }, stepSize: 25 },
+            grid: { color: 'rgba(255,255,255,0.04)' },
+          }
+        },
+        annotation: {
+          annotations: {
+            ob: { type: 'line', yMin: 70, yMax: 70, borderColor: '#ff5f7e88', borderWidth: 1, borderDash: [4,4] },
+            os: { type: 'line', yMin: 30, yMax: 30, borderColor: '#00d4aa88', borderWidth: 1, borderDash: [4,4] },
+          }
+        }
+      }
+    });
+  }
+
+  // ── AI Insights ────────────────────────────────────────────────────────────
+  function renderInsights(data) {
+    const ins = data.insight;
+    if (!ins) return;
+
+    // Sentiment pill
+    const pillClass = {
+      Bullish: 'sentiment-bull',
+      Bearish: 'sentiment-bear',
+      Neutral: 'sentiment-neut',
+    }[ins.sentiment] || 'sentiment-neut';
+
+    const pillIcon = { Bullish: '🚀', Bearish: '⚠️', Neutral: '⚖️' }[ins.sentiment] || '⚖️';
+
+    $('sentimentPill').innerHTML = `
+      <div class="sentiment-pill ${pillClass}">${pillIcon} ${ins.sentiment}</div>
+    `;
+
+    const bulletsHtml = ins.details.map(d => `
+      <div class="insight-bullet">${d}</div>
+    `).join('');
+
+    $('insightBody').innerHTML = `
+      <p class="insight-summary">${ins.summary}</p>
+      <div class="insight-details">${bulletsHtml}</div>
+      <div class="opportunity-box">
+        <strong>💼 Investment Opportunity</strong>
+        ${ins.opportunity}
+      </div>
+    `;
+  }
+
+  // ── Model Info ─────────────────────────────────────────────────────────────
+  function renderModelInfo(data) {
+    const row = $('modelInfoRow');
+    row.style.display = 'flex';
+    $('r2Chip').querySelector('span').textContent = data.metrics.r2_score;
+  }
+
+  // ── Keyboard shortcut ──────────────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !$('analyzeBtn').disabled) runAnalysis();
+  });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadTickers();
+</script>
+</body>
+</html>
