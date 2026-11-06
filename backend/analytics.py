@@ -9,8 +9,49 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
+
+try:
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import StandardScaler
+except ImportError:
+    class StandardScaler:  # type: ignore
+        def __init__(self):
+            self.mean_ = None
+            self.scale_ = None
+
+        def fit_transform(self, X):
+            X = np.asarray(X, dtype=float)
+            self.mean_ = np.mean(X, axis=0)
+            self.scale_ = np.std(X, axis=0)
+            self.scale_ = np.where(self.scale_ == 0, 1.0, self.scale_)
+            return (X - self.mean_) / self.scale_
+
+        def transform(self, X):
+            X = np.asarray(X, dtype=float)
+            return (X - self.mean_) / self.scale_
+
+        def inverse_transform(self, y):
+            y = np.asarray(y, dtype=float)
+            return y * self.scale_ + self.mean_
+
+    class LinearRegression:  # type: ignore
+        def __init__(self):
+            self.coef_ = None
+
+        def fit(self, X, y):
+            X_b = np.c_[np.ones((X.shape[0], 1)), X]
+            self.coef_, _, _, _ = np.linalg.lstsq(X_b, y, rcond=None)
+            return self
+
+        def predict(self, X):
+            X_b = np.c_[np.ones((X.shape[0], 1)), X]
+            return np.dot(X_b, self.coef_)
+
+        def score(self, X, y):
+            y_pred = self.predict(X)
+            u = ((y - y_pred) ** 2).sum()
+            v = ((y - y.mean()) ** 2).sum()
+            return 1 - (u / v) if v != 0 else 0.0
 
 
 # ── Technical Indicators ──────────────────────────────────────────────────────

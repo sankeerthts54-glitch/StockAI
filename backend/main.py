@@ -37,18 +37,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve frontend static files
+# Serve frontend static files (works locally and safely skips if running pure serverless)
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+PUBLIC_DIR = os.path.join(os.path.dirname(__file__), "..", "public")
+target_dir = FRONTEND_DIR if os.path.exists(FRONTEND_DIR) else (PUBLIC_DIR if os.path.exists(PUBLIC_DIR) else None)
 
+if target_dir and os.path.exists(target_dir):
+    app.mount("/static", StaticFiles(directory=target_dir), name="static")
 
-# ── Routes ────────────────────────────────────────────────────────────────────
-
-@app.get("/", include_in_schema=False)
-async def serve_index():
-    """Serve the main dashboard HTML."""
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
-    return FileResponse(index_path)
+    @app.get("/", include_in_schema=False)
+    async def serve_index():
+        """Serve the main dashboard HTML."""
+        index_path = os.path.join(target_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"status": "StockAI API running. Visit frontend."}
 
 
 @app.get("/api/tickers", summary="List available ticker symbols")
